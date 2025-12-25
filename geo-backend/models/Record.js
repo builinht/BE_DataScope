@@ -11,14 +11,14 @@ const recordSchema = new mongoose.Schema(
       languages: [String],
       flag: String,
       region: String,
-      subregion: String
+      subregion: String,
     },
     weather: {
       temperature: Number,
       humidity: Number,
       description: String,
       feelsLike: Number,
-      pressure: Number
+      pressure: Number,
     },
     airQuality: [
       {
@@ -26,9 +26,11 @@ const recordSchema = new mongoose.Schema(
         value: { type: Number },
         unit: { type: String },
         status: { type: String },
-      }
-  ],
-    fetchedAt: { type: Date } // Add fetchedAt field
+        measuredAt: { type: Date },
+        locationName: { type: String },
+      },
+    ],
+    fetchedAt: { type: Date }, // Add fetchedAt field
   },
   { timestamps: true } // automatically adds createdAt and updatedAt
 );
