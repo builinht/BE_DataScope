@@ -1,12 +1,12 @@
 #!/bin/bash
 
-MONGO_BIN="/c/Program Files/MongoDB/Server/8.2/bin"
+TOOLS_BIN="/c/Program Files/MongoDB/Tools/100/bin"
 DATE=$(date +"%Y%m%d_%H%M%S")
 BACKUP_DIR="../backup/$DATE"
 
 mkdir -p "$BACKUP_DIR"
 
-"$MONGO_BIN/mongodump.exe" \
+"$TOOLS_BIN/mongodump.exe" \
   --db geoinsight \
   --out "$BACKUP_DIR"
 
