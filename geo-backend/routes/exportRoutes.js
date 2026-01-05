@@ -1,0 +1,46 @@
+const { spawn } = require("child_process");
+const express = require("express");
+const path = require("path");
+const fs = require("fs");
+const requirePermission = require("../middlewares/requirePermission");
+
+const router = express.Router();
+
+router.get("/export", requirePermission("db:export"), (req, res) => {
+  try {
+    const exportsDir = path.join(__dirname, "../exports");
+    if (!fs.existsSync(exportsDir)) fs.mkdirSync(exportsDir);
+
+    const fileName = `records_${Date.now()}.json`;
+    const filePath = path.join(exportsDir, fileName);
+
+    const mongoexportPath = `"C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoexport.exe"`;
+
+    const args = [
+      "--db", "geoinsight",
+      "--collection", "records",
+      "--out", filePath,
+      "--jsonArray"
+    ];
+
+    const child = spawn(mongoexportPath, args, { shell: true });
+
+    child.stdout.on("data", (data) => console.log(data.toString()));
+    child.stderr.on("data", (data) => console.error(data.toString()));
+
+    child.on("close", (code) => {
+      if (code !== 0) {
+        return res.status(500).json({ message: "Export failed" });
+      }
+
+      res.download(filePath, fileName, (err) => {
+        if (err) console.error("Download error:", err);
+      });
+    });
+
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+module.exports = router;

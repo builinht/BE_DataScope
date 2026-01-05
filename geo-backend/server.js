@@ -6,6 +6,10 @@ const { auth } = require("express-oauth2-jwt-bearer");
 
 // Routes
 const recordsRoutes = require("./routes/recordsRoutes");
+const backupRoutes = require("./routes/backupRoutes");
+const restoreRoutes = require("./routes/restoreRoutes");
+const importRoutes = require("./routes/importRoutes");
+const exportRoutes = require("./routes/exportRoutes");
 
 const app = express();
 
@@ -29,9 +33,14 @@ const checkJwt = auth({
 
 // 3. APPLY JWT ONLY TO PROTECTED ROUTES
 app.use("/api/records", checkJwt);
+app.use("/api/admin/db", checkJwt);
 
 // 4. ROUTE REGISTRATION
 app.use("/api/records", recordsRoutes);
+app.use("/api/admin/db", backupRoutes);
+app.use("/api/admin/db", restoreRoutes);
+app.use("/api/admin/db", importRoutes);
+app.use("/api/admin/db", exportRoutes);
 
 // 5. MONGO DB CONNECTION
 mongoose
