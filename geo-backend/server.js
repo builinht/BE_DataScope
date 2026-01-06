@@ -10,6 +10,9 @@ const backupRoutes = require("./routes/backupRoutes");
 const restoreRoutes = require("./routes/restoreRoutes");
 const importRoutes = require("./routes/importRoutes");
 const exportRoutes = require("./routes/exportRoutes");
+const userExportRoutes = require("./routes/userExportRoutes");
+const userImportRoutes = require("./routes/userImportRoutes");
+
 
 const app = express();
 
@@ -34,6 +37,7 @@ const checkJwt = auth({
 // 3. APPLY JWT ONLY TO PROTECTED ROUTES
 app.use("/api/records", checkJwt);
 app.use("/api/admin/db", checkJwt);
+app.use("/api/user/db", checkJwt);
 
 // 4. ROUTE REGISTRATION
 app.use("/api/records", recordsRoutes);
@@ -41,6 +45,8 @@ app.use("/api/admin/db", backupRoutes);
 app.use("/api/admin/db", restoreRoutes);
 app.use("/api/admin/db", importRoutes);
 app.use("/api/admin/db", exportRoutes);
+app.use("/api/user/db", userExportRoutes);
+app.use("/api/user/db", userImportRoutes);
 
 // 5. MONGO DB CONNECTION
 mongoose
