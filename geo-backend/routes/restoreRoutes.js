@@ -3,117 +3,113 @@ const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
-const requirePermission = require("../middlewares/requirePermission");
 const AdmZip = require("adm-zip");
 
 const router = express.Router();
-const upload = multer({ dest: path.join(__dirname, "../uploads") });
+
+/* ===== UPLOAD CONFIG ===== */
+const uploadDir = path.join(__dirname, "../uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+const upload = multer({ dest: uploadDir });
 
 /**
+ * POST /api/admin/db/restore/export
  * Restore từ JSON export (mongoimport)
+ * ADMIN ONLY (check ở server.js)
  */
-router.post(
-  "/restore/export",
-  requirePermission("db:restore"),
-  upload.single("file"),
-  (req, res) => {
-    if (!req.file) return res.status(400).json({ message: "Missing file" });
+router.post("/restore/export", upload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ message: "Missing file" });
 
-    const filePath = req.file.path;
-    const mongoimportPath = `"C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoimport.exe"`;
+  const filePath = req.file.path;
+  const mongoimportPath =
+    `"C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoimport.exe"`;
+
+  const args = [
+    "--db", "geoinsight",
+    "--collection", "records",
+    "--file", filePath,
+    "--jsonArray",
+    "--drop"
+  ];
+
+  const child = spawn(mongoimportPath, args, { shell: true });
+
+  child.stdout.on("data", d => console.log(d.toString()));
+  child.stderr.on("data", d => console.error(d.toString()));
+
+  child.on("close", code => {
+    fs.unlinkSync(filePath);
+    if (code !== 0)
+      return res.status(500).json({ message: "Restore export failed" });
+
+    res.json({ message: "Restore export success" });
+  });
+});
+
+/**
+ * POST /api/admin/db/restore/backup
+ * Restore từ ZIP backup (mongorestore)
+ * ADMIN ONLY
+ */
+router.post("/restore/backup", upload.single("file"), (req, res) => {
+  if (!req.file)
+    return res.status(400).json({ message: "Missing backup file" });
+
+  const zipPath = req.file.path;
+  const extractDir = path.join(__dirname, "../tmp_restore");
+
+  fs.rmSync(extractDir, { recursive: true, force: true });
+  fs.mkdirSync(extractDir, { recursive: true });
+
+  try {
+    const zip = new AdmZip(zipPath);
+    zip.extractAllTo(extractDir, true);
+    fs.unlinkSync(zipPath);
+
+    const findBson = dir => {
+      for (const f of fs.readdirSync(dir)) {
+        const full = path.join(dir, f);
+        if (fs.statSync(full).isDirectory()) {
+          const r = findBson(full);
+          if (r) return r;
+        } else if (f.endsWith(".bson")) {
+          return full;
+        }
+      }
+      return null;
+    };
+
+    const bsonFile = findBson(extractDir);
+    if (!bsonFile) throw new Error("No .bson file found");
+
+    const mongorestorePath =
+      `"C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongorestore.exe"`;
+
     const args = [
-      "--db",
-      "geoinsight",
-      "--collection",
-      "records",
-      "--file",
-      filePath,
-      "--jsonArray",
+      "--db", "geoinsight",
+      "--collection", "records",
       "--drop",
+      bsonFile
     ];
 
-    const child = spawn(mongoimportPath, args, { shell: true });
+    const child = spawn(mongorestorePath, args, { shell: true });
 
-    child.stdout.on("data", (data) => console.log("mongoimport stdout:", data.toString()));
-    child.stderr.on("data", (data) => console.error("mongoimport stderr:", data.toString()));
+    child.stdout.on("data", d => console.log(d.toString()));
+    child.stderr.on("data", d => console.error(d.toString()));
 
-    child.on("close", (code) => {
-      try { fs.unlinkSync(filePath); } catch (e) { console.error(e.message); }
-      if (code !== 0) return res.status(500).json({ message: "Restore export failed" });
-      res.json({ message: "Restore export success" });
+    child.on("close", code => {
+      fs.rmSync(extractDir, { recursive: true, force: true });
+      if (code !== 0)
+        return res.status(500).json({ message: "Restore backup failed" });
+
+      res.json({ message: "Restore backup success" });
     });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Restore backup failed", error: e.message });
   }
-);
-
-/**
- * Restore từ backup ZIP (mongorestore)
- */
-router.post(
-  "/restore/backup",
-  requirePermission("db:restore"),
-  upload.single("file"),
-  (req, res) => {
-    if (!req.file) return res.status(400).json({ message: "Missing backup file" });
-
-    const zipPath = req.file.path;
-    const extractDir = path.join(__dirname, "../tmp_restore");
-
-    // Xóa folder cũ nếu tồn tại
-    fs.rmSync(extractDir, { recursive: true, force: true });
-    fs.mkdirSync(extractDir);
-
-    try {
-      // Giải nén ZIP
-      const zip = new AdmZip(zipPath);
-      zip.extractAllTo(extractDir, true);
-      fs.unlinkSync(zipPath); // xóa file ZIP tạm
-
-      // Tìm file .bson bất kỳ trong folder
-      function findBsonFile(dir) {
-        const files = fs.readdirSync(dir);
-        for (const f of files) {
-          const fullPath = path.join(dir, f);
-          const stat = fs.statSync(fullPath);
-          if (stat.isDirectory()) {
-            const deeper = findBsonFile(fullPath);
-            if (deeper) return deeper;
-          } else if (f.endsWith(".bson")) {
-            return fullPath;
-          }
-        }
-        return null;
-      }
-
-      const bsonFile = findBsonFile(extractDir);
-      if (!bsonFile) throw new Error("No .bson file found in backup");
-
-      console.log("Restoring from file:", bsonFile);
-
-      // Gọi mongorestore trực tiếp vào collection records
-      const mongorestorePath = `"C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongorestore.exe"`;
-      const args = [
-        "--db", "geoinsight",
-        "--collection", "records",
-        "--drop",
-        bsonFile
-      ];
-
-      const child = spawn(mongorestorePath, args, { shell: true });
-
-      child.stdout.on("data", data => console.log("mongorestore stdout:", data.toString()));
-      child.stderr.on("data", data => console.error("mongorestore stderr:", data.toString()));
-
-      child.on("close", code => {
-        try { fs.rmSync(extractDir, { recursive: true, force: true }); } catch(e){}
-        if (code !== 0) return res.status(500).json({ message: "Restore backup failed" });
-        res.json({ message: "Restore backup success" });
-      });
-
-    } catch (e) {
-      console.error(e);
-      res.status(500).json({ message: "Restore backup failed", error: e.message });
-    }
-  }
-);
+});
 
 module.exports = router;

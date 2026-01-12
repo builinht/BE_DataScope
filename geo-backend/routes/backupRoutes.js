@@ -3,36 +3,57 @@ const { exec } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const AdmZip = require("adm-zip");
+
 const router = express.Router();
-const requirePermission = require("../middlewares/requirePermission");
 
-router.post("/backup", requirePermission("db:backup"), (req, res) => {
+router.post("/backup", (req, res) => {
   const timestamp = Date.now();
-  const tempFolder = path.join(__dirname, "../tmp_backup", `backup_${timestamp}`);
-  const zipFile = path.join(__dirname, "../tmp_backup", `backup_${timestamp}.zip`);
+  const tmpRoot = path.join(__dirname, "../tmp_backup");
+  const tempFolder = path.join(tmpRoot, `backup_${timestamp}`);
+  const zipFile = path.join(tmpRoot, `backup_${timestamp}.zip`);
+  const lockFile = path.join(tmpRoot, ".backup.lock");
 
-  // Tạo folder tạm
-  if (!fs.existsSync(tempFolder)) fs.mkdirSync(tempFolder, { recursive: true });
+  try {
+    if (fs.existsSync(lockFile)) {
+      return res.status(409).json({ message: "Backup already in progress" });
+    }
 
-  // MongoDB dump
-  const cmd = `"C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongodump.exe" --db geoinsight --out "${tempFolder}"`;
-  exec(cmd, (err) => {
-    if (err) return res.status(500).json({ message: "Backup failed", error: err.message });
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    fs.mkdirSync(tempFolder, { recursive: true });
+    fs.writeFileSync(lockFile, "LOCK");
 
-    // Nén folder thành ZIP
-    const zip = new AdmZip();
-    zip.addLocalFolder(tempFolder);
-    zip.writeZip(zipFile);
+    const cmd = `"${process.env.MONGODUMP_PATH}" --db geoinsight --out "${tempFolder}"`;
 
-    // Gửi file ZIP về FE
-    res.download(zipFile, `geoinsight_backup_${timestamp}.zip`, (err) => {
-      if (err) console.error(err);
+    exec(cmd, { maxBuffer: 1024 * 1024 * 10 }, (err) => {
+      fs.unlinkSync(lockFile);
 
-      // Xóa tạm sau khi gửi
-      fs.rmSync(tempFolder, { recursive: true, force: true });
-      fs.unlinkSync(zipFile);
+      if (err) {
+        return res
+          .status(500)
+          .json({ message: "Backup failed", error: err.message });
+      }
+
+      fs.writeFileSync(
+        path.join(tempFolder, "backup_meta.json"),
+        JSON.stringify(
+          { timestamp, db: "geoinsight", type: "snapshot" },
+          null,
+          2
+        )
+      );
+
+      const zip = new AdmZip();
+      zip.addLocalFolder(tempFolder);
+      zip.writeZip(zipFile);
+
+      res.download(zipFile, () => {
+        fs.rmSync(tempFolder, { recursive: true, force: true });
+        fs.unlinkSync(zipFile);
+      });
     });
-  });
+  } catch (e) {
+    if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
+    res.status(500).json({ message: "Backup failed" });
+  }
 });
-
 module.exports = router;

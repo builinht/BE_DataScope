@@ -2,31 +2,38 @@ const { spawn } = require("child_process");
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
-const requirePermission = require("../middlewares/requirePermission");
 
 const router = express.Router();
 
-router.get("/export", requirePermission("db:export"), (req, res) => {
+/**
+ * GET /api/user/db/export
+ * Quyền user/admin đã được check ở server.js
+ */
+router.get("/export", (req, res) => {
   try {
     const exportsDir = path.join(__dirname, "../exports");
-    if (!fs.existsSync(exportsDir)) fs.mkdirSync(exportsDir);
+    if (!fs.existsSync(exportsDir)) {
+      fs.mkdirSync(exportsDir, { recursive: true });
+    }
 
     const fileName = `records_${Date.now()}.json`;
     const filePath = path.join(exportsDir, fileName);
 
-    const mongoexportPath = `"C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoexport.exe"`;
+    const mongoexportPath =
+      `"C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoexport.exe"`;
 
     const args = [
       "--db", "geoinsight",
       "--collection", "records",
       "--out", filePath,
-      "--jsonArray"
+      "--jsonArray",
     ];
 
     const child = spawn(mongoexportPath, args, { shell: true });
 
-    child.stdout.on("data", (data) => console.log(data.toString()));
-    child.stderr.on("data", (data) => console.error(data.toString()));
+    child.stderr.on("data", (data) => {
+      console.error("mongoexport error:", data.toString());
+    });
 
     child.on("close", (code) => {
       if (code !== 0) {
@@ -37,8 +44,8 @@ router.get("/export", requirePermission("db:export"), (req, res) => {
         if (err) console.error("Download error:", err);
       });
     });
-
   } catch (e) {
+    console.error("Export exception:", e);
     res.status(500).json({ error: e.message });
   }
 });
