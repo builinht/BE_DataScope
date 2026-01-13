@@ -15,8 +15,9 @@ if (!fs.existsSync(uploadDir)) {
 const upload = multer({ dest: uploadDir });
 
 /**
- * POST /api/user/db/import
- * Quyền user/admin đã check ở server.js
+ * POST /api/admin/db/import
+ * ADMIN ONLY
+ * Import kiểu MERGE – KHÔNG DROP DATA
  */
 router.post("/import", upload.single("file"), (req, res) => {
   if (!req.file) {
@@ -30,12 +31,12 @@ router.post("/import", upload.single("file"), (req, res) => {
 --collection records \
 --file "${filePath}" \
 --jsonArray \
---drop`;
+--mode=merge`;
 
   console.log("▶ Running:", cmd);
 
   exec(cmd, (err, stdout, stderr) => {
-    // Xóa file upload sau khi xử lý
+    // Luôn xóa file upload
     fs.unlinkSync(filePath);
 
     if (err) {
@@ -47,7 +48,7 @@ router.post("/import", upload.single("file"), (req, res) => {
     }
 
     res.json({
-      message: "Import success",
+      message: "Import success (merge mode – data safe)",
     });
   });
 });

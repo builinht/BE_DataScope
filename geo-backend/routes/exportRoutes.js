@@ -6,7 +6,7 @@ const fs = require("fs");
 const router = express.Router();
 
 /**
- * GET /api/user/db/export
+ * GET /api/admin/db/export
  * Quyền user/admin đã được check ở server.js
  */
 router.get("/export", (req, res) => {
