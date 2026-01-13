@@ -13,8 +13,6 @@ const backupRoutes = require("./routes/backupRoutes");
 const restoreRoutes = require("./routes/restoreRoutes");
 const importRoutes = require("./routes/importRoutes");
 const exportRoutes = require("./routes/exportRoutes");
-const userExportRoutes = require("./routes/userExportRoutes");
-const userImportRoutes = require("./routes/userImportRoutes");
 const userBackupRestoreRoutes = require("./routes/userBackupRestoreRoutes");
 
 const app = express();
