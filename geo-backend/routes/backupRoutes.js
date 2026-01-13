@@ -8,52 +8,31 @@ const router = express.Router();
 
 router.post("/backup", (req, res) => {
   const timestamp = Date.now();
-  const tmpRoot = path.join(__dirname, "../tmp_backup");
-  const tempFolder = path.join(tmpRoot, `backup_${timestamp}`);
-  const zipFile = path.join(tmpRoot, `backup_${timestamp}.zip`);
-  const lockFile = path.join(tmpRoot, ".backup.lock");
+  const ADMIN_BACKUP_ROOT = path.join(__dirname, "../backups/admin");
+  const backupDir = path.join(ADMIN_BACKUP_ROOT, `${timestamp}`);
 
-  try {
-    if (fs.existsSync(lockFile)) {
-      return res.status(409).json({ message: "Backup already in progress" });
+  fs.mkdirSync(backupDir, { recursive: true });
+
+  const cmd = `"${process.env.MONGODUMP_PATH}" --db geoinsight --out "${backupDir}"`;
+
+  exec(cmd, (err) => {
+    if (err) {
+      return res.status(500).json({
+        message: "Backup failed",
+        error: err.message,
+      });
     }
 
-    fs.mkdirSync(tmpRoot, { recursive: true });
-    fs.mkdirSync(tempFolder, { recursive: true });
-    fs.writeFileSync(lockFile, "LOCK");
+    fs.writeFileSync(
+      path.join(backupDir, "meta.json"),
+      JSON.stringify({ timestamp, db: "geoinsight" }, null, 2)
+    );
 
-    const cmd = `"${process.env.MONGODUMP_PATH}" --db geoinsight --out "${tempFolder}"`;
-
-    exec(cmd, { maxBuffer: 1024 * 1024 * 10 }, (err) => {
-      fs.unlinkSync(lockFile);
-
-      if (err) {
-        return res
-          .status(500)
-          .json({ message: "Backup failed", error: err.message });
-      }
-
-      fs.writeFileSync(
-        path.join(tempFolder, "backup_meta.json"),
-        JSON.stringify(
-          { timestamp, db: "geoinsight", type: "snapshot" },
-          null,
-          2
-        )
-      );
-
-      const zip = new AdmZip();
-      zip.addLocalFolder(tempFolder);
-      zip.writeZip(zipFile);
-
-      res.download(zipFile, () => {
-        fs.rmSync(tempFolder, { recursive: true, force: true });
-        fs.unlinkSync(zipFile);
-      });
+    res.json({
+      message: "Backup success",
+      backupId: timestamp,
     });
-  } catch (e) {
-    if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
-    res.status(500).json({ message: "Backup failed" });
-  }
+  });
 });
+
 module.exports = router;

@@ -15,6 +15,7 @@ const importRoutes = require("./routes/importRoutes");
 const exportRoutes = require("./routes/exportRoutes");
 const userExportRoutes = require("./routes/userExportRoutes");
 const userImportRoutes = require("./routes/userImportRoutes");
+const userBackupRestoreRoutes = require("./routes/userBackupRestoreRoutes");
 
 const app = express();
 
@@ -55,13 +56,7 @@ app.use(
   "/api/user/db",
   authMiddleware,
   requireRole(["user", "admin"]),
-  userExportRoutes
-);
-app.use(
-  "/api/user/db",
-  authMiddleware,
-  requireRole(["user", "admin"]),
-  userImportRoutes
+  userBackupRestoreRoutes
 );
 
 /* ======================

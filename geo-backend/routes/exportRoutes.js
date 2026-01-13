@@ -19,13 +19,15 @@ router.get("/export", (req, res) => {
     const fileName = `records_${Date.now()}.json`;
     const filePath = path.join(exportsDir, fileName);
 
-    const mongoexportPath =
-      `"C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoexport.exe"`;
+    const mongoexportPath = `"C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoexport.exe"`;
 
     const args = [
-      "--db", "geoinsight",
-      "--collection", "records",
-      "--out", filePath,
+      "--db",
+      "geoinsight",
+      "--collection",
+      "records",
+      "--out",
+      filePath,
       "--jsonArray",
     ];
 
@@ -40,8 +42,16 @@ router.get("/export", (req, res) => {
         return res.status(500).json({ message: "Export failed" });
       }
 
+      // res.download(filePath, fileName, (err) => {
+      //   if (err) console.error("Download error:", err);
+      // });
+      // Gửi file xong thì xóa file tạm
       res.download(filePath, fileName, (err) => {
         if (err) console.error("Download error:", err);
+        fs.unlink(filePath, (unlinkErr) => {
+          if (unlinkErr)
+            console.error("Failed to delete temp export file:", unlinkErr);
+        });
       });
     });
   } catch (e) {
