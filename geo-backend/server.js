@@ -2,65 +2,90 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
-const { auth } = require("express-oauth2-jwt-bearer");
+
+// Middleware
+const { authMiddleware, requireRole } = require("./middlewares/auth");
 
 // Routes
+const authRoutes = require("./routes/auth");
 const recordsRoutes = require("./routes/recordsRoutes");
 const backupRoutes = require("./routes/backupRoutes");
 const restoreRoutes = require("./routes/restoreRoutes");
 const importRoutes = require("./routes/importRoutes");
 const exportRoutes = require("./routes/exportRoutes");
-const userExportRoutes = require("./routes/userExportRoutes");
-const userImportRoutes = require("./routes/userImportRoutes");
-
+const userBackupRestoreRoutes = require("./routes/userBackupRestoreRoutes");
 
 const app = express();
 
-// 1. CORS CONFIGURATION
+/* ======================
+   1. CORS & JSON
+====================== */
+app.use(express.json());
+
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || "http://localhost:5173",
     methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-api-key"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   })
 );
 
-app.use(express.json());
+/* ======================
+   2. PUBLIC ROUTES
+====================== */
+app.use("/api/auth", authRoutes);
 
-// 2. AUTH0 JWT MIDDLEWARE (PROTECTED ROUTES)
-const checkJwt = auth({
-  audience: process.env.AUTH0_AUDIENCE,
-  issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL,
-  tokenSigningAlg: "RS256",
-});
+/* ======================
+   3. PROTECTED ROUTES
+====================== */
 
-// 3. APPLY JWT ONLY TO PROTECTED ROUTES
-app.use("/api/records", checkJwt);
-app.use("/api/admin/db", checkJwt);
-app.use("/api/user/db", checkJwt);
+// Records → user & admin đều dùng
+app.use("/api/records", authMiddleware, recordsRoutes);
 
-// 4. ROUTE REGISTRATION
-app.use("/api/records", recordsRoutes);
-app.use("/api/admin/db", backupRoutes);
-app.use("/api/admin/db", restoreRoutes);
-app.use("/api/admin/db", importRoutes);
-app.use("/api/admin/db", exportRoutes);
-app.use("/api/user/db", userExportRoutes);
-app.use("/api/user/db", userImportRoutes);
+// ADMIN DB ROUTES → chỉ admin
+app.use("/api/admin/db", authMiddleware, requireRole(["admin"]), backupRoutes);
+app.use("/api/admin/db", authMiddleware, requireRole(["admin"]), restoreRoutes);
+app.use("/api/admin/db", authMiddleware, requireRole(["admin"]), importRoutes);
+app.use("/api/admin/db", authMiddleware, requireRole(["admin"]), exportRoutes);
 
-// 5. MONGO DB CONNECTION
-mongoose
-  .connect(process.env.MONGO_URI, {})
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch((err) => console.error("❌ DB Error:", err));
+// USER DB ROUTES → user & admin
+app.use(
+  "/api/user/db",
+  authMiddleware,
+  requireRole(["user", "admin"]),
+  userBackupRestoreRoutes
+);
 
-// 6. HEALTH CHECK ROUTE
+/* ======================
+   4. HEALTH CHECK
+====================== */
 app.get("/", (req, res) => {
   res.send("GeoInsight API Running 🚀");
 });
 
-// 7. START SERVER
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+/* ======================
+   5. MONGO CONNECTION
+====================== */
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch((err) => console.error("❌ MongoDB Connection Error:", err));
+
+/* ======================
+   6. ERROR HANDLER
+====================== */
+// Thêm middleware xử lý lỗi chung
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.status || 500).json({ message: err.message || "Server error" });
 });
+
+/* ======================
+   7. START SERVER
+====================== */
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));

@@ -17,7 +17,7 @@ const recordSchema = new mongoose.Schema(
       temperature: Number,
       humidity: Number,
       description: String,
-      feelsLike: Number,
+      // feelsLike: Number,
       pressure: Number,
     },
     airQuality: [
