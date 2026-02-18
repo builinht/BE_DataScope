@@ -28,7 +28,7 @@ app.use(
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-  })
+  }),
 );
 
 /* ======================
@@ -44,17 +44,22 @@ app.use("/api/auth", authRoutes);
 app.use("/api/records", authMiddleware, recordsRoutes);
 
 // ADMIN DB ROUTES → chỉ admin
-app.use("/api/admin/db", authMiddleware, requireRole(["admin"]), backupRoutes);
-app.use("/api/admin/db", authMiddleware, requireRole(["admin"]), restoreRoutes);
-app.use("/api/admin/db", authMiddleware, requireRole(["admin"]), importRoutes);
-app.use("/api/admin/db", authMiddleware, requireRole(["admin"]), exportRoutes);
+app.use(
+  "/api/admin/db",
+  authMiddleware,
+  requireRole(["admin"]),
+  backupRoutes,
+  restoreRoutes,
+  importRoutes,
+  exportRoutes,
+);
 
 // USER DB ROUTES → user & admin
 app.use(
   "/api/user/db",
   authMiddleware,
   requireRole(["user", "admin"]),
-  userBackupRestoreRoutes
+  userBackupRestoreRoutes,
 );
 
 /* ======================
@@ -68,11 +73,30 @@ app.get("/", (req, res) => {
    5. MONGO CONNECTION
 ====================== */
 mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
+  .connect(process.env.MONGO_URI)
+  .then(async () => {
+    console.log("✅ MongoDB Connected");
+
+    // ===== CREATE TIME-SERIES COLLECTION IF NOT EXISTS =====
+    const db = mongoose.connection.db;
+
+    const collections = await db.listCollections().toArray();
+    const exists = collections.some((col) => col.name === "records_timeseries");
+
+    if (!exists) {
+      await db.createCollection("records_timeseries", {
+        timeseries: {
+          timeField: "timestamp",
+          metaField: "meta",
+          granularity: "minutes",
+        },
+      });
+
+      console.log("✅ Time-series collection created");
+    } else {
+      console.log("ℹ️ Time-series collection already exists");
+    }
   })
-  .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => console.error("❌ MongoDB Connection Error:", err));
 
 /* ======================
@@ -81,7 +105,9 @@ mongoose
 // Thêm middleware xử lý lỗi chung
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(err.status || 500).json({ message: err.message || "Server error" });
+  res
+    .status(err.status || 500)
+    .json({ message: err.message || "Server error" });
 });
 
 /* ======================

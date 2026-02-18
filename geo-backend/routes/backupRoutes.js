@@ -13,10 +13,14 @@ router.post("/backup", (req, res) => {
 
   fs.mkdirSync(backupDir, { recursive: true });
 
-  const cmd = `"${process.env.MONGODUMP_PATH}" --db geoinsight --out "${backupDir}"`;
+  const cmd = `"${process.env.MONGODUMP_PATH}" --uri="${process.env.MONGO_URI}" --out="${backupDir}"`;
 
-  exec(cmd, (err) => {
+  console.log("Running:", cmd);
+
+  exec(cmd, (err, stdout, stderr) => {
     if (err) {
+      console.error("Dump error:", err);
+      console.error(stderr);
       return res.status(500).json({
         message: "Backup failed",
         error: err.message,
@@ -25,7 +29,7 @@ router.post("/backup", (req, res) => {
 
     fs.writeFileSync(
       path.join(backupDir, "meta.json"),
-      JSON.stringify({ timestamp, db: "geoinsight" }, null, 2)
+      JSON.stringify({ timestamp }, null, 2),
     );
 
     res.json({

@@ -1,0 +1,28 @@
+[
+  {
+    "timestamp": "2026-02-15T12:40:47.015Z",
+    "meta": {
+      "capital": "Hanoi",
+      "country": "Vietnam",
+      "countryCode": "VN",
+      "currency": "VND",
+      "flag": "https://flagcdn.com/vn.svg",
+      "languages": [
+        "Vietnamese"
+      ],
+      "population": 101343800,
+      "region": "Asia",
+      "subregion": "South-Eastern Asia",
+      "userId": "698da88aa62dbcfbbaf84b55"
+    },
+    "weatherDescription": "few clouds",
+    "airQualityStatus": "Moderate",
+    "__v": 0,
+    "pm25": 12.9,
+    "humidity": 88,
+    "pressure": 1013,
+    "pm10": null,
+    "temperature": 17,
+    "_id": "6991c6e0c28e3215763834bb"
+  }
+]

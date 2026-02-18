@@ -15,20 +15,25 @@ router.post("/backup", async (req, res) => {
     const userBackupDir = path.join(
       USER_BACKUP_ROOT,
       userId,
-      String(timestamp)
+      String(timestamp),
     );
     fs.mkdirSync(userBackupDir, { recursive: true });
 
-    const records = await Record.find({ userId }).lean();
+    const records = await Record.find({ "meta.userId": userId }).lean();
     fs.writeFileSync(
       path.join(userBackupDir, "backup.json"),
-      JSON.stringify(records, null, 2)
+      JSON.stringify(records, null, 2),
     );
 
-    res.json({ message: "Backup success", backupId: timestamp });
+    res.json({
+      success: true,
+      backupId: timestamp,
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "User backup failed" });
+    res.status(500).json({
+      success: false,
+    });
   }
 });
 
@@ -52,28 +57,14 @@ router.post("/restore", async (req, res) => {
 
     const data = JSON.parse(fs.readFileSync(backupFile, "utf-8"));
 
-    let upserted = 0;
-
-    for (const r of data) {
-      const { _id, ...rest } = r;
-
-      const result = await Record.updateOne(
-        {
-          userId,
-          country: rest.country,
-          fetchedAt: rest.fetchedAt,
-        },
-        { $set: { ...rest, userId } },
-        { upsert: true }
-      );
-
-      if (result.upsertedCount > 0) upserted++;
-    }
+    // Xoá _id và __v để tránh duplicate key error
+    await Record.deleteMany({ "meta.userId": userId });
+    const cleaned = data.map(({ _id, __v, ...rest }) => rest);
+    await Record.insertMany(cleaned);
 
     res.json({
-      message: "Restore success (merge)",
-      total: data.length,
-      inserted: upserted,
+      message: "Restore success",
+      total: cleaned.length,
       backupId: latest,
     });
   } catch (err) {
