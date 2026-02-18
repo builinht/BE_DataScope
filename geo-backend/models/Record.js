@@ -2,9 +2,16 @@ const mongoose = require("mongoose");
 
 const recordSchema = new mongoose.Schema(
   {
-    country: { type: String, required: true },
-    userId: { type: String, required: true }, // Add user ID field
-    metadata: {
+    timestamp: {
+      type: Date,
+      required: true,
+      default: Date.now,
+    },
+
+    meta: {
+      recordId: { type: String, required: true },
+      country: { type: String, required: true },
+      countryCode: String,
       capital: String,
       population: Number,
       currency: String,
@@ -12,33 +19,29 @@ const recordSchema = new mongoose.Schema(
       flag: String,
       region: String,
       subregion: String,
+      userId: { type: String, required: true },
     },
-    weather: {
-      temperature: Number,
-      humidity: Number,
-      description: String,
-      // feelsLike: Number,
-      pressure: Number,
-    },
-    airQuality: [
-      {
-        parameter: { type: String },
-        value: { type: Number },
-        unit: { type: String },
-        status: { type: String },
-        measuredAt: { type: Date },
-        locationName: { type: String },
-      },
-    ],
-    fetchedAt: { type: Date }, // Add fetchedAt field
+
+    // Weather
+    temperature: Number,
+    feelsLike: Number,
+    humidity: Number,
+    pressure: Number,
+    weatherDescription: String,
+
+    // Air quality
+    pm25: Number,
+    airQualityStatus: String,
   },
-  { timestamps: true } // automatically adds createdAt and updatedAt
+  {
+    collection: "records_timeseries",
+    timestamps: false,
+    timeseries: {
+      timeField: "timestamp",
+      metaField: "meta",
+      granularity: "hours",
+    },
+  }
 );
 
-// Index for better query performance
-recordSchema.index({ userId: 1, createdAt: -1 });
-recordSchema.index({ userId: 1, country: 1 });
-
-const Record = mongoose.model("Record", recordSchema);
-
-module.exports = Record;
+module.exports = mongoose.model("Record", recordSchema);

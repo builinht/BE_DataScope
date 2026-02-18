@@ -1,5 +1,5 @@
 const express = require("express");
-const { exec } = require("child_process");
+const { spawn } = require("child_process");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -16,7 +16,6 @@ const upload = multer({ dest: uploadDir });
 
 /**
  * POST /api/admin/db/import
- * ADMIN ONLY
  * Import kiểu MERGE – KHÔNG DROP DATA
  */
 router.post("/import", upload.single("file"), (req, res) => {
@@ -26,24 +25,44 @@ router.post("/import", upload.single("file"), (req, res) => {
 
   const filePath = req.file.path;
 
-  const cmd = `"C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoimport.exe" \
---db geoinsight \
---collection records \
---file "${filePath}" \
---jsonArray \
---mode=merge`;
+  const mongoimportPath =
+    "C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoimport.exe";
 
-  console.log("▶ Running:", cmd);
+  const args = [
+    `--uri=${process.env.MONGO_URI}`,
+    "--db=geoinsight",
+    "--collection=records_timeseries",
+    `--file=${filePath}`,
+    "--jsonArray",
+  ];
 
-  exec(cmd, (err, stdout, stderr) => {
-    // Luôn xóa file upload
+  console.log("▶ Running mongoimport...");
+
+  const child = spawn(mongoimportPath, args);
+
+  child.stdout.on("data", (data) => {
+    console.log(data.toString());
+  });
+
+  child.stderr.on("data", (data) => {
+    console.log(data.toString()); // mongoimport thường log ở stderr
+  });
+
+  child.on("error", (err) => {
+    console.error("Spawn error:", err);
+    fs.unlinkSync(filePath);
+    return res.status(500).json({
+      message: "Import failed (spawn error)",
+    });
+  });
+
+  child.on("close", (code) => {
+    // luôn xóa file upload
     fs.unlinkSync(filePath);
 
-    if (err) {
-      console.error("Import error:", stderr || err.message);
+    if (code !== 0) {
       return res.status(500).json({
         message: "Import failed",
-        error: stderr || err.message,
       });
     }
 

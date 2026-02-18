@@ -5,10 +5,6 @@ const fs = require("fs");
 
 const router = express.Router();
 
-/**
- * GET /api/admin/db/export
- * Quyền user/admin đã được check ở server.js
- */
 router.get("/export", (req, res) => {
   try {
     const exportsDir = path.join(__dirname, "../exports");
@@ -19,38 +15,49 @@ router.get("/export", (req, res) => {
     const fileName = `records_${Date.now()}.json`;
     const filePath = path.join(exportsDir, fileName);
 
-    const mongoexportPath = `"C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoexport.exe"`;
+    const mongoexportPath =
+      "C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoexport.exe";
 
     const args = [
-      "--db",
-      "geoinsight",
-      "--collection",
-      "records",
-      "--out",
-      filePath,
+      `--uri=${process.env.MONGO_URI}`,
+      "--db=geoinsight",
+      "--collection=records_timeseries",
+      `--out=${filePath}`,
       "--jsonArray",
     ];
 
-    const child = spawn(mongoexportPath, args, { shell: true });
+    const child = spawn(mongoexportPath, args);
+
+    child.stdout.on("data", (data) => {
+      console.log(data.toString());
+    });
 
     child.stderr.on("data", (data) => {
-      console.error("mongoexport error:", data.toString());
+      console.log(data.toString()); // mongoexport log thường đi qua stderr
+    });
+
+    child.on("error", (err) => {
+      console.error("Spawn error:", err);
+      return res.status(500).json({ message: "Spawn failed" });
     });
 
     child.on("close", (code) => {
+      console.log("Export finished with code:", code);
+
       if (code !== 0) {
         return res.status(500).json({ message: "Export failed" });
       }
 
-      // res.download(filePath, fileName, (err) => {
-      //   if (err) console.error("Download error:", err);
-      // });
-      // Gửi file xong thì xóa file tạm
       res.download(filePath, fileName, (err) => {
-        if (err) console.error("Download error:", err);
+        if (err) {
+          console.error("Download error:", err);
+        }
+
+        // Xóa file tạm sau khi gửi xong
         fs.unlink(filePath, (unlinkErr) => {
-          if (unlinkErr)
+          if (unlinkErr) {
             console.error("Failed to delete temp export file:", unlinkErr);
+          }
         });
       });
     });
