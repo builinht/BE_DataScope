@@ -88,7 +88,7 @@ mongoose
         timeseries: {
           timeField: "timestamp",
           metaField: "meta",
-          granularity: "minutes",
+          granularity: "hours",
         },
       });
 
