@@ -70,36 +70,6 @@ app.get("/", (req, res) => {
 });
 
 /* ======================
-   5. MONGO CONNECTION
-====================== */
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(async () => {
-    console.log("✅ MongoDB Connected");
-
-    // ===== CREATE TIME-SERIES COLLECTION IF NOT EXISTS =====
-    const db = mongoose.connection.db;
-
-    const collections = await db.listCollections().toArray();
-    const exists = collections.some((col) => col.name === "records_timeseries");
-
-    if (!exists) {
-      await db.createCollection("records_timeseries", {
-        timeseries: {
-          timeField: "timestamp",
-          metaField: "meta",
-          granularity: "hours",
-        },
-      });
-
-      console.log("✅ Time-series collection created");
-    } else {
-      console.log("ℹ️ Time-series collection already exists");
-    }
-  })
-  .catch((err) => console.error("❌ MongoDB Connection Error:", err));
-
-/* ======================
    6. ERROR HANDLER
 ====================== */
 // Thêm middleware xử lý lỗi chung
@@ -116,7 +86,25 @@ app.use((err, req, res, next) => {
 async function startServer() {
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log("MongoDB Connected");
+    console.log("✅ MongoDB Connected");
+
+    const db = mongoose.connection.db;
+
+    const collections = await db.listCollections().toArray();
+    const exists = collections.some(
+      (col) => col.name === "records_timeseries"
+    );
+
+    if (!exists) {
+      await db.createCollection("records_timeseries", {
+        timeseries: {
+          timeField: "timestamp",
+          metaField: "meta",
+          granularity: "hours",
+        },
+      });
+      console.log("✅ Time-series collection created");
+    }
 
     const PORT = process.env.PORT || 5000;
 
