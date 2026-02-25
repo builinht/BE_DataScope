@@ -17,7 +17,7 @@ COPY . .
 ENV NODE_ENV=production
 
 # ===== Expose port (Fly/Render sẽ override bằng PORT) =====
-EXPOSE 8080
+EXPOSE 5000
 
 # ===== Start app =====
 CMD ["npm", "start"]
