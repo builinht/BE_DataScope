@@ -113,8 +113,20 @@ app.use((err, req, res, next) => {
 /* ======================
    7. START SERVER
 ====================== */
-const PORT = process.env.PORT;
+async function startServer() {
+  try {
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log("MongoDB Connected");
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on ${PORT}`);
-});
+    const PORT = process.env.PORT || 5000;
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on ${PORT}`);
+    });
+  } catch (err) {
+    console.error("Startup error:", err);
+    process.exit(1);
+  }
+}
+
+startServer();
