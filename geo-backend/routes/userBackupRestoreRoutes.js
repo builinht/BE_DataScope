@@ -147,20 +147,20 @@ router.post("/import", upload.single("file"), async (req, res) => {
     // Validate + làm sạch từng record
     const { ObjectId } = require("mongodb");
     const cleaned = records
-      .filter((r) => r.meta?.country && r.timestamp) // bỏ qua record thiếu field bắt buộc
+      .filter((r) => r.meta?.countryCode && r.timestamp) // bỏ qua record thiếu field bắt buộc
       .map(({ _id, __v, ...rest }) => ({
         ...rest,
         timestamp: new Date(rest.timestamp),
         meta: {
           ...rest.meta,
-          userId,                           // ✅ Gắn userId hiện tại
-          recordId: new ObjectId().toString(), // ✅ Tạo recordId mới, tránh trùng
+          userId,                           // Gắn userId hiện tại
+          recordId: new ObjectId().toString(), // Tạo recordId mới, tránh trùng
         },
       }));
 
     if (cleaned.length === 0) {
       return res.status(400).json({
-        message: "No valid records found. Each record needs 'meta.country' and 'timestamp'.",
+        message: "No valid records found. Each record needs 'meta.countryCode' and 'timestamp'.",
       });
     }
 
