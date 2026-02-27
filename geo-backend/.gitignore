@@ -41,3 +41,13 @@ coverage/
 
 # Optional
 *.tgz
+
+# MongoDB backups
+backups/
+geo-backend/backups/
+
+# Mongo dump files
+*.bson
+*.metadata.json
+backup*.gz
+dump*.gz
