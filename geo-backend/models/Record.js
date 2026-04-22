@@ -62,6 +62,9 @@ const regularSchema = new mongoose.Schema(
   }
 );
 
+recordSchema.index({ "meta.userId": 1, timestamp: -1 });
+regularSchema.index({ "meta.userId": 1, timestamp: -1 });
+
 const Record        = mongoose.model("Record", recordSchema);
 const RecordRegular = mongoose.model("RecordRegular", regularSchema);
 

@@ -169,16 +169,31 @@ router.post(
 ====================== */
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const records = await Record.find({ "meta.userId": req.user.userId })
-      .sort({ timestamp: -1 })
-      .lean();
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
+    const skip = (page - 1) * limit;
 
-    const codes = [
-      ...new Set(records.map((r) => r.meta.countryCode).filter(Boolean)),
-    ];
+    const filter = { "meta.userId": req.user.userId };
+
+    if (req.query.countryCode) {
+      filter["meta.countryCode"] = req.query.countryCode.toUpperCase();
+    }
+
+    const [records, total] = await Promise.all([
+      Record.find(filter)
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Record.countDocuments(filter),
+    ]);
+
+    const codes = [...new Set(records.map((r) => r.meta.countryCode).filter(Boolean))];
+
     const metas = await CountryMeta.find({
       countryCode: { $in: codes },
     }).lean();
+
     const metaMap = Object.fromEntries(metas.map((m) => [m.countryCode, m]));
 
     const enriched = records.map((r) => {
@@ -200,7 +215,17 @@ router.get("/", authMiddleware, async (req, res) => {
       };
     });
 
-    res.json(enriched);
+    res.json({
+      data: enriched,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
+        hasPrev: page > 1,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to fetch records" });
