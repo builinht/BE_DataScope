@@ -16,7 +16,7 @@ router.get("/export", (req, res) => {
     const filePath = path.join(exportsDir, fileName);
 
     const mongoexportPath =
-      "C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoexport.exe";
+      "C:\\Program Files\\MongoDB\\Tools\\100\\bin\\mongoexport.exe";
 
     const args = [
       `--uri=${process.env.MONGO_URI}`,

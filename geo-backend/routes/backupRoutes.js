@@ -7,7 +7,7 @@ const router = express.Router();
 
 const MONGODUMP_PATH =
   process.env.MONGODUMP_PATH ||
-  "C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongodump.exe";
+  "C:\\Program Files\\MongoDB\\Tools\\100\\bin\\mongodump.exe";
 
 const ADMIN_BACKUP_ROOT = path.join(__dirname, "../backups/admin");
 

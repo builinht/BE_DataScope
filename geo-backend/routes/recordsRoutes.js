@@ -274,7 +274,10 @@ router.get("/geo/airquality", async (req, res) => {
           if (locationData.id) {
             const latestResp = await axios.get(
               `https://api.openaq.org/v3/locations/${locationData.id}/latest`,
-              { headers },
+              {
+                params: { parameter: "pm25" }, // Lọc chỉ PM2.5
+                headers,
+              },
             );
             measurements = latestResp.data?.results || [];
           }
@@ -307,7 +310,10 @@ router.get("/geo/airquality", async (req, res) => {
           if (locationData.id) {
             const latestResp = await axios.get(
               `https://api.openaq.org/v3/locations/${locationData.id}/latest`,
-              { headers },
+              {
+                params: { parameter: "pm25" }, // Lọc chỉ PM2.5
+                headers,
+              },
             );
             measurements = latestResp.data?.results || [];
           }
@@ -324,12 +330,20 @@ router.get("/geo/airquality", async (req, res) => {
       })
       .map((meas) => {
         const value = Number(meas.value);
-        const parameterName = meas.parameter?.name || meas.parameter || "pm2.5";
+        let parameterName = (
+          meas.parameter?.name ||
+          meas.parameter ||
+          ""
+        ).toLowerCase();
+        if (!parameterName) parameterName = "pm2.5";
+        const isPM25 =
+          parameterName.includes("pm25") || parameterName.includes("pm2.5");
         return {
-          parameter: parameterName,
+          parameter: isPM25 ? "pm2.5" : parameterName,
+
           value,
           unit: meas.unit || meas.parameter?.units || "µg/m³",
-          status: getAQIStatus(value, parameterName),
+          status: getAQIStatus(value, "pm2.5"), // Luôn dùng "pm2.5" cho status
           measuredAt:
             meas.datetime?.utc || meas.date?.utc || new Date().toISOString(),
           locationName:
@@ -652,24 +666,42 @@ router.post("/seed-test", authMiddleware, async (req, res) => {
 
 router.get("/query-explain", authMiddleware, async (req, res) => {
   try {
-    const db     = mongoose.connection.db;
-    const from   = new Date(Date.now() - 7 * 24 * 3600 * 1000);
-    const to     = new Date();
+    const db = mongoose.connection.db;
+    const from = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+    const to = new Date();
     const userId = req.user.userId;
 
     // Aggregation explain
-    const tsAggExplainArr = await db.collection("records_timeseries")
-      .aggregate([
-        { $match: { "meta.userId": userId, timestamp: { $gte: from, $lte: to } } },
-        { $group: { _id: "$meta.countryCode", avgPM25: { $avg: "$pm25" } } },
-      ], { explain: true })
+    const tsAggExplainArr = await db
+      .collection("records_timeseries")
+      .aggregate(
+        [
+          {
+            $match: {
+              "meta.userId": userId,
+              timestamp: { $gte: from, $lte: to },
+            },
+          },
+          { $group: { _id: "$meta.countryCode", avgPM25: { $avg: "$pm25" } } },
+        ],
+        { explain: true },
+      )
       .toArray();
 
-    const regAggExplainArr = await db.collection("records_regular")
-      .aggregate([
-        { $match: { "meta.userId": userId, timestamp: { $gte: from, $lte: to } } },
-        { $group: { _id: "$meta.countryCode", avgPM25: { $avg: "$pm25" } } },
-      ], { explain: true })
+    const regAggExplainArr = await db
+      .collection("records_regular")
+      .aggregate(
+        [
+          {
+            $match: {
+              "meta.userId": userId,
+              timestamp: { $gte: from, $lte: to },
+            },
+          },
+          { $group: { _id: "$meta.countryCode", avgPM25: { $avg: "$pm25" } } },
+        ],
+        { explain: true },
+      )
       .toArray();
 
     const parseAgg = (explainArr) => {
@@ -680,13 +712,16 @@ router.get("/query-explain", authMiddleware, async (req, res) => {
         explain?.stages?.[0]?.executionStats,
         explain?.executionStats,
         explain?.shards
-          ? Object.values(explain.shards)[0]?.stages?.[0]?.$cursor?.executionStats
+          ? Object.values(explain.shards)[0]?.stages?.[0]?.$cursor
+              ?.executionStats
           : null,
       ];
-      return candidates.find((p) => p?.executionTimeMillis !== undefined) || null;
+      return (
+        candidates.find((p) => p?.executionTimeMillis !== undefined) || null
+      );
     };
 
-    const tsStats  = parseAgg(tsAggExplainArr);
+    const tsStats = parseAgg(tsAggExplainArr);
     const regStats = parseAgg(regAggExplainArr);
 
     // Fallback hrtime nếu explain không khả dụng
@@ -695,39 +730,60 @@ router.get("/query-explain", authMiddleware, async (req, res) => {
       tsMs = tsStats.executionTimeMillis;
     } else {
       const t = process.hrtime.bigint();
-      await db.collection("records_timeseries").aggregate([
-        { $match: { "meta.userId": userId, timestamp: { $gte: from, $lte: to } } },
-        { $group: { _id: "$meta.countryCode", avgPM25: { $avg: "$pm25" } } },
-      ]).toArray();
-      tsMs = parseFloat((Number(process.hrtime.bigint() - t) / 1_000_000).toFixed(2));
+      await db
+        .collection("records_timeseries")
+        .aggregate([
+          {
+            $match: {
+              "meta.userId": userId,
+              timestamp: { $gte: from, $lte: to },
+            },
+          },
+          { $group: { _id: "$meta.countryCode", avgPM25: { $avg: "$pm25" } } },
+        ])
+        .toArray();
+      tsMs = parseFloat(
+        (Number(process.hrtime.bigint() - t) / 1_000_000).toFixed(2),
+      );
     }
 
     if (regStats?.executionTimeMillis !== undefined) {
       regMs = regStats.executionTimeMillis;
     } else {
       const t = process.hrtime.bigint();
-      await db.collection("records_regular").aggregate([
-        { $match: { "meta.userId": userId, timestamp: { $gte: from, $lte: to } } },
-        { $group: { _id: "$meta.countryCode", avgPM25: { $avg: "$pm25" } } },
-      ]).toArray();
-      regMs = parseFloat((Number(process.hrtime.bigint() - t) / 1_000_000).toFixed(2));
+      await db
+        .collection("records_regular")
+        .aggregate([
+          {
+            $match: {
+              "meta.userId": userId,
+              timestamp: { $gte: from, $lte: to },
+            },
+          },
+          { $group: { _id: "$meta.countryCode", avgPM25: { $avg: "$pm25" } } },
+        ])
+        .toArray();
+      regMs = parseFloat(
+        (Number(process.hrtime.bigint() - t) / 1_000_000).toFixed(2),
+      );
     }
 
-    const ratio = regMs > tsMs
-      ? `Time-series nhanh hơn ${(regMs / tsMs).toFixed(1)}x`
-      : `Regular nhanh hơn ${(tsMs / regMs).toFixed(1)}x`;
+    const ratio =
+      regMs > tsMs
+        ? `Time-series nhanh hơn ${(regMs / tsMs).toFixed(1)}x`
+        : `Regular nhanh hơn ${(tsMs / regMs).toFixed(1)}x`;
 
     res.json({
       aggregation_avg_pm25_by_country: {
         timeseries: {
           executionTimeMs: tsMs,
-          docsExamined:    tsStats?.totalDocsExamined ?? "N/A",
-          docsReturned:    tsStats?.nReturned         ?? "N/A",
+          docsExamined: tsStats?.totalDocsExamined ?? "N/A",
+          docsReturned: tsStats?.nReturned ?? "N/A",
         },
         regular: {
           executionTimeMs: regMs,
-          docsExamined:    regStats?.totalDocsExamined ?? "N/A",
-          docsReturned:    regStats?.nReturned         ?? "N/A",
+          docsExamined: regStats?.totalDocsExamined ?? "N/A",
+          docsReturned: regStats?.nReturned ?? "N/A",
         },
         ratio,
         insight: `Time-series chỉ đọc ${tsStats?.totalDocsExamined ?? "?"} buckets thay vì ${regStats?.totalDocsExamined ?? "?"} documents`,

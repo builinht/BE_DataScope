@@ -26,7 +26,7 @@ router.post("/import", upload.single("file"), (req, res) => {
   const filePath = req.file.path;
 
   const mongoimportPath =
-    "C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongoimport.exe";
+    "C:\\Program Files\\MongoDB\\Tools\\100\\bin\\mongoimport.exe";
 
   const args = [
     `--uri=${process.env.MONGO_URI}`,

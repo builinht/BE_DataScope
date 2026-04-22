@@ -7,7 +7,7 @@ const router = express.Router();
 
 const MONGORESTORE_PATH =
   process.env.MONGORESTORE_PATH ||
-  "C:\\Program Files\\MongoDB\\Tools\\100.9.4\\bin\\mongorestore.exe";
+  "C:\\Program Files\\MongoDB\\Tools\\100\\bin\\mongorestore.exe";
 
 const ADMIN_BACKUP_ROOT = path.join(__dirname, "../backups/admin");
 
