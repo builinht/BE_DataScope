@@ -158,11 +158,11 @@ router.post("/import", upload.single("file"), async (req, res) => {
         },
       }));
 
-    if (cleaned.length === 0) {
-      return res.status(400).json({
-        message: "No valid records found. Each record needs 'meta.countryCode' and 'timestamp'.",
-      });
-    }
+    // if (cleaned.length === 0) {
+    //   return res.status(400).json({
+    //     message: "No valid records found. Each record needs 'meta.countryCode' and 'timestamp'.",
+    //   });
+    // }
 
     await Record.insertMany(cleaned, { ordered: false }); // ordered:false → bỏ qua lỗi từng doc, import được nhiều nhất
 
